@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Project = require("../models/Project");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
+const jwt = require("jsonwebtoken");
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
@@ -53,43 +54,32 @@ router.post("/create", authMiddleware, async (req, res) => {
 
 
 router.get("/:id", authMiddleware, async (req, res) => {
-  console.log("Fetching project with ID:", req.params.id);
   try {
-    let project = await Project.findById(req.params.id);
-    console.log("Project before population:", JSON.stringify(project, null, 2));
-
-    project = await Project.findById(req.params.id).populate(
-      "createdBy",
-      "username"
-    );
-    console.log("Project after population:", JSON.stringify(project, null, 2));
+    const project = await Project.findById(req.params.id)
+      .populate('createdBy', 'username')
+      .populate('members', 'username');
 
     if (!project) {
-      console.log("Project not found");
       return res.status(404).json({ message: "Project not found" });
     }
 
-    if (
-      typeof project.createdBy === "string" ||
-      project.createdBy instanceof mongoose.Types.ObjectId
-    ) {
-      const user = await User.findById(project.createdBy);
-      console.log("User found:", user);
-      if (user) {
-        project = project.toObject();
-        project.createdBy = { _id: user._id, username: user.username };
+    // Convert members to an array of objects with _id and username
+    const populatedMembers = await Promise.all(project.members.map(async (member) => {
+      if (typeof member === 'string' || member instanceof mongoose.Types.ObjectId) {
+        const user = await User.findById(member).select('username');
+        return user ? { _id: user._id, username: user.username } : { _id: member, username: 'Unknown' };
       }
-    }
+      return member;
+    }));
 
-    res.json(project);
+    const projectObject = project.toObject();
+    projectObject.members = populatedMembers;
+
+    console.log('Populated project:', JSON.stringify(projectObject, null, 2));
+    res.json(projectObject);
   } catch (error) {
     console.error("Error fetching project details:", error);
-    res
-      .status(500)
-      .json({
-        message: "Error fetching project details",
-        error: error.message,
-      });
+    res.status(500).json({ message: "Error fetching project details", error: error.message });
   }
 });
 
@@ -98,26 +88,26 @@ router.put("/:id", authMiddleware, async (req, res) => {
   const { name, description } = req.body;
 
   try {
-    // Find the project
-    const project = await Project.findById(id);
+    let project = await Project.findById(id);
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Check if the user is the creator of the project
     if (project.createdBy.toString() !== req.user.userId) {
       return res.status(403).json({ message: "You don't have permission to update this project" });
     }
 
-    // Update the project
     project.name = name || project.name;
     project.description = description || project.description;
     project.updatedAt = new Date();
 
-    const updatedProject = await project.save();
+    await project.save();
 
-    res.json(updatedProject);
+    // Populate the createdBy field before sending the response
+    project = await Project.findById(id).populate('createdBy', 'username');
+
+    res.json(project);
   } catch (error) {
     console.error("Error updating project:", error);
     res.status(500).json({ message: "Error updating project", error: error.message });
@@ -127,7 +117,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
 router.post('/:id/members', authMiddleware, async (req, res) => {
   try {
     console.log('Received request to add member:', req.body);
-    const project = await Project.findById(req.params.id);
+    let project = await Project.findById(req.params.id);
     if (!project) {
       console.log('Project not found:', req.params.id);
       return res.status(404).json({ message: 'Project not found' });
@@ -147,11 +137,24 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
     project.members.push(user._id);
     await project.save();
     
-    await project.populate('createdBy', 'username');
-    await project.populate('members', 'username');
+    // Fetch the updated project with populated members
+    project = await Project.findById(req.params.id)
+      .populate('createdBy', 'username')
+      .populate('members', 'username');
     
-    console.log('Updated project:', project);
-    res.json(project);
+    const populatedMembers = await Promise.all(project.members.map(async (member) => {
+      if (typeof member === 'string' || member instanceof mongoose.Types.ObjectId) {
+        const user = await User.findById(member).select('username');
+        return user ? { _id: user._id, username: user.username } : { _id: member, username: 'Unknown' };
+      }
+      return member;
+    }));
+
+    const projectObject = project.toObject();
+    projectObject.members = populatedMembers;
+    
+    console.log('Updated project:', JSON.stringify(projectObject, null, 2));
+    res.json(projectObject);
   } catch (error) {
     console.error('Error adding member to project:', error);
     res.status(500).json({ message: 'Error adding member to project', error: error.message });
