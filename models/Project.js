@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const ProjectSchema = new mongoose.Schema({
-  _id: mongoose.Schema.Types.ObjectId,
   name: {
     type: String,
     required: true,
@@ -18,8 +17,14 @@ const ProjectSchema = new mongoose.Schema({
       ref: "User",
     },
   ],
-  createdAt: Date,
-  updatedAt: Date,
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
 const Project = mongoose.model("Project", ProjectSchema);
