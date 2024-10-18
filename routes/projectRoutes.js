@@ -267,7 +267,7 @@ router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
 
     project.tasks.push(newTask);
     await project.save();
-
+    console.log(newTask);
     res.status(201).json(newTask);
   } catch (error) {
     res
@@ -386,7 +386,8 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     const { projectId, taskId } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ["Not Started", "In Progress", "Stuck", "Done"];
+    
+    const validStatuses = ['Not Started', 'In Progress', 'Stuck', 'Done'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value" });
     }
@@ -402,14 +403,12 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     }
 
     task.status = status;
-    project.markModified("tasks");
     await project.save();
 
     res.json(task);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error updating task", error: error.message });
+    console.error('Error updating task status:', error);
+    res.status(500).json({ message: "Error updating task status", error: error.message });
   }
 });
 

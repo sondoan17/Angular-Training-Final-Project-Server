@@ -8,8 +8,8 @@ const TaskSchema = new mongoose.Schema({
   description: String,
   type: {
     type: String,
-    enum: ['task', 'bug'],
-    default: 'task'
+    enum: ["task", "bug"],
+    default: "task",
   },
   status: {
     type: String,
@@ -18,22 +18,22 @@ const TaskSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['none', 'low', 'medium', 'high', 'critical'],
-    default: 'none'
+    enum: ["none", "low", "medium", "high", "critical"],
+    default: "none",
   },
   timeline: {
     days: {
       type: Number,
-      default: 0
+      default: 0,
     },
     months: {
       type: Number,
-      default: 0
-    }
+      default: 0,
+    },
   },
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    ref: "User",
   },
   createdAt: {
     type: Date,
@@ -42,7 +42,7 @@ const TaskSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now,
-  }
+  },
 });
 
 const ProjectSchema = new mongoose.Schema({
