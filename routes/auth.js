@@ -4,7 +4,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const User = require("../models/User");
-const { OAuth2Client } = require('google-auth-library');
+const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 router.post("/register", async (req, res, next) => {
@@ -39,29 +39,26 @@ router.post("/register", async (req, res, next) => {
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log('Login attempt:', { username, password: '****' });
+    console.log("Login attempt:", { username, password: "****" });
 
     if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Username and password are required" });
     }
 
     const user = await User.findOne({ username });
-    console.log('User found:', user ? 'Yes' : 'No');
+    console.log("User found:", user ? "Yes" : "No");
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log('Password match:', isMatch ? 'Yes' : 'No');
+    console.log("Password match:", isMatch ? "Yes" : "No");
 
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
-    }
-    
-    if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is not defined");
-      return res.status(500).json({ message: 'Internal server error: JWT_SECRET is not configured' });
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
@@ -75,19 +72,19 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post('/google', async (req, res) => {
+router.post("/google", async (req, res) => {
   const { token } = req.body;
   try {
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const userId = payload['sub'];
+    const userId = payload["sub"];
 
-    res.json({ token: 'your_jwt_token' });
+    res.json({ token: "your_jwt_token" });
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: "Invalid token" });
   }
 });
 
