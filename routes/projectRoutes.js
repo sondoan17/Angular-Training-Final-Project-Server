@@ -63,7 +63,6 @@ router.get("/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Convert members to an array of objects with _id and username
     const populatedMembers = await Promise.all(project.members.map(async (member) => {
       if (typeof member === 'string' || member instanceof mongoose.Types.ObjectId) {
         const user = await User.findById(member).select('username');
@@ -75,7 +74,6 @@ router.get("/:id", authMiddleware, async (req, res) => {
     const projectObject = project.toObject();
     projectObject.members = populatedMembers;
 
-    console.log('Populated project:', JSON.stringify(projectObject, null, 2));
     res.json(projectObject);
   } catch (error) {
     console.error("Error fetching project details:", error);
@@ -104,7 +102,6 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     await project.save();
 
-    // Populate the createdBy field before sending the response
     project = await Project.findById(id).populate('createdBy', 'username');
 
     res.json(project);
@@ -116,28 +113,23 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
 router.post('/:id/members', authMiddleware, async (req, res) => {
   try {
-    console.log('Received request to add member:', req.body);
     let project = await Project.findById(req.params.id);
     if (!project) {
-      console.log('Project not found:', req.params.id);
       return res.status(404).json({ message: 'Project not found' });
     }
     
     const user = await User.findOne({ username: req.body.username });
     if (!user) {
-      console.log('User not found:', req.body.username);
       return res.status(404).json({ message: 'User not found' });
     }
     
     if (project.members.includes(user._id)) {
-      console.log('User already a member:', user._id);
       return res.status(400).json({ message: 'User is already a member of this project' });
     }
     
     project.members.push(user._id);
     await project.save();
     
-    // Fetch the updated project with populated members
     project = await Project.findById(req.params.id)
       .populate('createdBy', 'username')
       .populate('members', 'username');
@@ -153,11 +145,56 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
     const projectObject = project.toObject();
     projectObject.members = populatedMembers;
     
-    console.log('Updated project:', JSON.stringify(projectObject, null, 2));
     res.json(projectObject);
   } catch (error) {
     console.error('Error adding member to project:', error);
     res.status(500).json({ message: 'Error adding member to project', error: error.message });
+  }
+});
+
+router.delete('/:projectId/members/:memberId', authMiddleware, async (req, res) => {
+  try {
+    const { projectId, memberId } = req.params;
+
+    let project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // Check if the user is the project creator
+    if (project.createdBy.toString() !== req.user.userId) {
+      return res.status(403).json({ message: "You don't have permission to remove members from this project" });
+    }
+
+    // Check if the member exists in the project
+    if (!project.members.includes(memberId)) {
+      return res.status(400).json({ message: 'User is not a member of this project' });
+    }
+
+    // Remove the member from the project
+    project.members = project.members.filter(member => member.toString() !== memberId);
+    await project.save();
+
+    // Fetch the updated project with populated members
+    project = await Project.findById(projectId)
+      .populate('createdBy', 'username')
+      .populate('members', 'username');
+
+    const populatedMembers = await Promise.all(project.members.map(async (member) => {
+      if (typeof member === 'string' || member instanceof mongoose.Types.ObjectId) {
+        const user = await User.findById(member).select('username');
+        return user ? { _id: user._id, username: user.username } : { _id: member, username: 'Unknown' };
+      }
+      return member;
+    }));
+
+    const projectObject = project.toObject();
+    projectObject.members = populatedMembers;
+
+    res.json(projectObject);
+  } catch (error) {
+    console.error('Error removing member from project:', error);
+    res.status(500).json({ message: 'Error removing member from project', error: error.message });
   }
 });
 
