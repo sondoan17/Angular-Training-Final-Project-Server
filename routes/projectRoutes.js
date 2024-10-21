@@ -6,6 +6,47 @@ const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 const { ObjectId } = mongoose.Types;
 
+// Đặt route này ở đầu file
+router.get("/assigned-tasks", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log('Fetching tasks for user:', userId);
+
+    const projects = await Project.find({
+      $or: [
+        { createdBy: userId },
+        { members: userId },
+        { 'tasks.assignedTo': userId }
+      ]
+    });
+
+    console.log('Found projects:', projects.length);
+
+    const assignedTasks = projects.flatMap(project => 
+      project.tasks.filter(task => 
+        Array.isArray(task.assignedTo) && task.assignedTo.some(assignee => assignee && assignee.toString() === userId)
+      ).map(task => ({
+        _id: task._id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        projectId: project._id,
+        projectName: project.name
+      }))
+    );
+
+    console.log('Assigned tasks:', assignedTasks.length);
+
+    res.json(assignedTasks);
+  } catch (error) {
+    console.error('Error fetching assigned tasks:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Error fetching assigned tasks', error: error.message, stack: error.stack });
+  }
+});
+
+// Các route khác giữ nguyên
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -32,6 +73,7 @@ router.post("/create", authMiddleware, async (req, res) => {
     name,
     description,
     createdBy: req.user.userId,
+    members: [req.user.userId], 
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -244,35 +286,34 @@ router.delete(
 router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { title, description, type, status, priority, timeline, assignedTo } =
-      req.body;
+    const { title, description, status, priority, assignedTo, timeline } = req.body;
+    const userId = req.user.userId; 
 
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
+    
+    const taskAssignedTo = assignedTo && assignedTo.length > 0 ? assignedTo : [userId];
+
     const newTask = {
-      _id: new ObjectId(),
       title,
       description,
-      type,
       status,
       priority,
+      assignedTo: taskAssignedTo,
       timeline,
-      assignedTo: assignedTo ? new ObjectId(assignedTo) : null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdBy: userId
     };
 
     project.tasks.push(newTask);
     await project.save();
-    console.log(newTask);
+
     res.status(201).json(newTask);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error creating task", error: error.message });
+    console.error('Error creating task:', error);
+    res.status(500).json({ message: "Error creating task", error: error.message });
   }
 });
 
@@ -386,7 +427,6 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     const { projectId, taskId } = req.params;
     const { status } = req.body;
 
-    
     const validStatuses = ['Not Started', 'In Progress', 'Stuck', 'Done'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value" });
@@ -409,6 +449,58 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error updating task status:', error);
     res.status(500).json({ message: "Error updating task status", error: error.message });
+  }
+});
+
+// Thêm route mới để xóa project
+router.delete("/:projectId", authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user.userId;
+
+    const project = await Project.findOne({ _id: projectId, createdBy: userId });
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found or you don't have permission to delete it" });
+    }
+
+    await Project.findByIdAndDelete(projectId);
+
+    res.json({ message: "Project deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting project:", error);
+    res.status(500).json({ message: "Error deleting project", error: error.message });
+  }
+});
+
+router.put("/:projectId", authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const updates = req.body;
+    const userId = req.user.userId;
+
+    const project = await Project.findOne({ _id: projectId, createdBy: userId });
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found or you don't have permission to edit it" });
+    }
+
+    // Xử lý đặc biệt cho trường hợp assignedTo
+    if (updates.tasks) {
+      updates.tasks.forEach(task => {
+        if (task.assignedTo && !Array.isArray(task.assignedTo)) {
+          task.assignedTo = [task.assignedTo];
+        }
+      });
+    }
+
+    Object.assign(project, updates);
+    await project.save();
+
+    res.json(project);
+  } catch (error) {
+    console.error("Error updating project:", error);
+    res.status(500).json({ message: "Error updating project", error: error.message });
   }
 });
 
