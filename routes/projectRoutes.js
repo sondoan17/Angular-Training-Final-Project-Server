@@ -452,7 +452,7 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
   }
 });
 
-// Thêm route mới để xóa project
+
 router.delete("/:projectId", authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -484,8 +484,7 @@ router.put("/:projectId", authMiddleware, async (req, res) => {
     if (!project) {
       return res.status(404).json({ message: "Project not found or you don't have permission to edit it" });
     }
-
-    // Xử lý đặc biệt cho trường hợp assignedTo
+    
     if (updates.tasks) {
       updates.tasks.forEach(task => {
         if (task.assignedTo && !Array.isArray(task.assignedTo)) {
