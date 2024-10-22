@@ -10,39 +10,51 @@ const { ObjectId } = mongoose.Types;
 router.get("/assigned-tasks", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
-    console.log('Fetching tasks for user:', userId);
+    console.log("Fetching tasks for user:", userId);
 
     const projects = await Project.find({
       $or: [
         { createdBy: userId },
         { members: userId },
-        { 'tasks.assignedTo': userId }
-      ]
+        { "tasks.assignedTo": userId },
+      ],
     });
 
-    console.log('Found projects:', projects.length);
+    console.log("Found projects:", projects.length);
 
-    const assignedTasks = projects.flatMap(project => 
-      project.tasks.filter(task => 
-        Array.isArray(task.assignedTo) && task.assignedTo.some(assignee => assignee && assignee.toString() === userId)
-      ).map(task => ({
-        _id: task._id,
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        projectId: project._id,
-        projectName: project.name
-      }))
+    const assignedTasks = projects.flatMap((project) =>
+      project.tasks
+        .filter(
+          (task) =>
+            Array.isArray(task.assignedTo) &&
+            task.assignedTo.some(
+              (assignee) => assignee && assignee.toString() === userId
+            )
+        )
+        .map((task) => ({
+          _id: task._id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          projectId: project._id,
+          projectName: project.name,
+        }))
     );
 
-    console.log('Assigned tasks:', assignedTasks.length);
+    console.log("Assigned tasks:", assignedTasks.length);
 
     res.json(assignedTasks);
   } catch (error) {
-    console.error('Error fetching assigned tasks:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ message: 'Error fetching assigned tasks', error: error.message, stack: error.stack });
+    console.error("Error fetching assigned tasks:", error);
+    console.error("Error stack:", error.stack);
+    res
+      .status(500)
+      .json({
+        message: "Error fetching assigned tasks",
+        error: error.message,
+        stack: error.stack,
+      });
   }
 });
 
@@ -73,7 +85,7 @@ router.post("/create", authMiddleware, async (req, res) => {
     name,
     description,
     createdBy: req.user.userId,
-    members: [req.user.userId], 
+    members: [req.user.userId],
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -121,12 +133,10 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
     res.json(projectObject);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error fetching project details",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error fetching project details",
+      error: error.message,
+    });
   }
 });
 
@@ -208,12 +218,10 @@ router.post("/:id/members", authMiddleware, async (req, res) => {
 
     res.json(projectObject);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Error adding member to project",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error adding member to project",
+      error: error.message,
+    });
   }
 });
 
@@ -230,12 +238,10 @@ router.delete(
       }
 
       if (project.createdBy.toString() !== req.user.userId) {
-        return res
-          .status(403)
-          .json({
-            message:
-              "You don't have permission to remove members from this project",
-          });
+        return res.status(403).json({
+          message:
+            "You don't have permission to remove members from this project",
+        });
       }
 
       if (!project.members.includes(memberId)) {
@@ -273,12 +279,10 @@ router.delete(
 
       res.json(projectObject);
     } catch (error) {
-      res
-        .status(500)
-        .json({
-          message: "Error removing member from project",
-          error: error.message,
-        });
+      res.status(500).json({
+        message: "Error removing member from project",
+        error: error.message,
+      });
     }
   }
 );
@@ -286,16 +290,17 @@ router.delete(
 router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { title, description, status, priority, assignedTo, timeline } = req.body;
-    const userId = req.user.userId; 
+    const { title, description, status, priority, assignedTo, timeline } =
+      req.body;
+    const userId = req.user.userId;
 
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    
-    const taskAssignedTo = assignedTo && assignedTo.length > 0 ? assignedTo : [userId];
+    const taskAssignedTo =
+      assignedTo && assignedTo.length > 0 ? assignedTo : [userId];
 
     const newTask = {
       title,
@@ -304,16 +309,24 @@ router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
       priority,
       assignedTo: taskAssignedTo,
       timeline,
-      createdBy: userId
+      createdBy: userId,
     };
 
     project.tasks.push(newTask);
     await project.save();
 
-    res.status(201).json(newTask);
+    const createdTask = project.tasks[project.tasks.length - 1];
+
+    res.status(201).json(createdTask);
   } catch (error) {
-    console.error('Error creating task:', error);
-    res.status(500).json({ message: "Error creating task", error: error.message });
+    console.error("Error creating task:", error);
+    res
+      .status(500)
+      .json({
+        message: "Error creating task",
+        error: error.message,
+        stack: error.stack,
+      });
   }
 });
 
@@ -427,7 +440,7 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     const { projectId, taskId } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ['Not Started', 'In Progress', 'Stuck', 'Done'];
+    const validStatuses = ["Not Started", "In Progress", "Stuck", "Done"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status value" });
     }
@@ -447,21 +460,30 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
 
     res.json(task);
   } catch (error) {
-    console.error('Error updating task status:', error);
-    res.status(500).json({ message: "Error updating task status", error: error.message });
+    console.error("Error updating task status:", error);
+    res
+      .status(500)
+      .json({ message: "Error updating task status", error: error.message });
   }
 });
-
 
 router.delete("/:projectId", authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user.userId;
 
-    const project = await Project.findOne({ _id: projectId, createdBy: userId });
+    const project = await Project.findOne({
+      _id: projectId,
+      createdBy: userId,
+    });
 
     if (!project) {
-      return res.status(404).json({ message: "Project not found or you don't have permission to delete it" });
+      return res
+        .status(404)
+        .json({
+          message:
+            "Project not found or you don't have permission to delete it",
+        });
     }
 
     await Project.findByIdAndDelete(projectId);
@@ -469,7 +491,9 @@ router.delete("/:projectId", authMiddleware, async (req, res) => {
     res.json({ message: "Project deleted successfully" });
   } catch (error) {
     console.error("Error deleting project:", error);
-    res.status(500).json({ message: "Error deleting project", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error deleting project", error: error.message });
   }
 });
 
@@ -479,14 +503,21 @@ router.put("/:projectId", authMiddleware, async (req, res) => {
     const updates = req.body;
     const userId = req.user.userId;
 
-    const project = await Project.findOne({ _id: projectId, createdBy: userId });
+    const project = await Project.findOne({
+      _id: projectId,
+      createdBy: userId,
+    });
 
     if (!project) {
-      return res.status(404).json({ message: "Project not found or you don't have permission to edit it" });
+      return res
+        .status(404)
+        .json({
+          message: "Project not found or you don't have permission to edit it",
+        });
     }
-    
+
     if (updates.tasks) {
-      updates.tasks.forEach(task => {
+      updates.tasks.forEach((task) => {
         if (task.assignedTo && !Array.isArray(task.assignedTo)) {
           task.assignedTo = [task.assignedTo];
         }
@@ -499,7 +530,9 @@ router.put("/:projectId", authMiddleware, async (req, res) => {
     res.json(project);
   } catch (error) {
     console.error("Error updating project:", error);
-    res.status(500).json({ message: "Error updating project", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error updating project", error: error.message });
   }
 });
 
