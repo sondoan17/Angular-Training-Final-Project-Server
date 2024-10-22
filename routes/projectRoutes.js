@@ -48,13 +48,11 @@ router.get("/assigned-tasks", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Error fetching assigned tasks:", error);
     console.error("Error stack:", error.stack);
-    res
-      .status(500)
-      .json({
-        message: "Error fetching assigned tasks",
-        error: error.message,
-        stack: error.stack,
-      });
+    res.status(500).json({
+      message: "Error fetching assigned tasks",
+      error: error.message,
+      stack: error.stack,
+    });
   }
 });
 
@@ -320,13 +318,11 @@ router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
     res.status(201).json(createdTask);
   } catch (error) {
     console.error("Error creating task:", error);
-    res
-      .status(500)
-      .json({
-        message: "Error creating task",
-        error: error.message,
-        stack: error.stack,
-      });
+    res.status(500).json({
+      message: "Error creating task",
+      error: error.message,
+      stack: error.stack,
+    });
   }
 });
 
@@ -478,12 +474,9 @@ router.delete("/:projectId", authMiddleware, async (req, res) => {
     });
 
     if (!project) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Project not found or you don't have permission to delete it",
-        });
+      return res.status(404).json({
+        message: "Project not found or you don't have permission to delete it",
+      });
     }
 
     await Project.findByIdAndDelete(projectId);
@@ -509,11 +502,9 @@ router.put("/:projectId", authMiddleware, async (req, res) => {
     });
 
     if (!project) {
-      return res
-        .status(404)
-        .json({
-          message: "Project not found or you don't have permission to edit it",
-        });
+      return res.status(404).json({
+        message: "Project not found or you don't have permission to edit it",
+      });
     }
 
     if (updates.tasks) {
