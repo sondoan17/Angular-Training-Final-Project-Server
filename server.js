@@ -5,6 +5,7 @@ const cors = require("cors");
 const authRouter = require("./routes/auth");
 const projectRoutes = require('./routes/projectRoutes');
 const userRoutes = require('./routes/userRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 
 const app = express();
 
@@ -34,6 +35,7 @@ mongoose
 app.use("/api/auth", authRouter);
 app.use('/api/projects', projectRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/search', searchRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
