@@ -447,7 +447,7 @@ router.put("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     const { projectId, taskId } = req.params;
     const updateData = req.body;
 
-    const project = await Project.findById(projectId);
+    let project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
@@ -461,7 +461,7 @@ router.put("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     Object.keys(updateData).forEach(key => {
       if (key !== '_id' && key !== 'createdAt' && key !== 'updatedAt') {
         if (key === 'assignedTo') {
-          task.assignedTo = updateData.assignedTo.map(user => user._id);
+          task.assignedTo = updateData.assignedTo.map(user => user._id || user);
         } else {
           task[key] = updateData[key];
         }
@@ -472,7 +472,13 @@ router.put("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
 
     await project.save();
 
-    res.json(task);
+    // Populate the assignedTo field after saving
+    await project.populate('tasks.assignedTo', 'username _id');
+
+    // Find the updated task in the populated project
+    const updatedTask = project.tasks.id(taskId);
+
+    res.json(updatedTask);
   } catch (error) {
     console.error("Error updating task:", error);
     res.status(500).json({ message: "Error updating task", error: error.toString() });
