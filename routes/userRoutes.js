@@ -30,4 +30,15 @@ router.get("/:userId", authMiddleware, async (req, res) => {
   }
 });
 
+// Get all users
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const users = await User.find({}, 'username _id');
+    res.json(users);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Error fetching users", error: error.toString() });
+  }
+});
+
 module.exports = router;

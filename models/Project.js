@@ -22,21 +22,13 @@ const TaskSchema = new mongoose.Schema({
     default: "none",
   },
   timeline: {
-    days: {
-      type: Number,
-      default: 0,
-    },
-    months: {
-      type: Number,
-      default: 0,
-    },
+    start: Date,
+    end: Date,
   },
-  assignedTo: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-  ],
+  assignedTo: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   createdAt: {
     type: Date,
     default: Date.now,
@@ -45,7 +37,7 @@ const TaskSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+}, { strict: true });
 
 const ProjectSchema = new mongoose.Schema({
   name: {
@@ -73,7 +65,7 @@ const ProjectSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+}, { strict: true });
 
 const Project = mongoose.model("Project", ProjectSchema);
 module.exports = Project;

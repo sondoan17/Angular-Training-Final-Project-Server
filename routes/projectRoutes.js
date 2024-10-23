@@ -288,98 +288,19 @@ router.delete(
 router.post("/:projectId/tasks", authMiddleware, async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { title, description, status, priority, assignedTo, timeline } =
-      req.body;
-    const userId = req.user.userId;
+    const taskData = req.body;
 
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    const taskAssignedTo =
-      assignedTo && assignedTo.length > 0 ? assignedTo : [userId];
-
-    const newTask = {
-      title,
-      description,
-      status,
-      priority,
-      assignedTo: taskAssignedTo,
-      timeline,
-      createdBy: userId,
-    };
-
-    project.tasks.push(newTask);
+    project.tasks.push(taskData);
     await project.save();
 
-    const createdTask = project.tasks[project.tasks.length - 1];
-
-    res.status(201).json(createdTask);
+    res.status(201).json(project.tasks[project.tasks.length - 1]);
   } catch (error) {
-    console.error("Error creating task:", error);
-    res.status(500).json({
-      message: "Error creating task",
-      error: error.message,
-      stack: error.stack,
-    });
-  }
-});
-
-router.put("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
-  try {
-    const { projectId, taskId } = req.params;
-    const { title, description, type, status, priority, timeline, assignedTo } =
-      req.body;
-
-    const project = await Project.findById(projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    const task = project.tasks.id(taskId);
-    if (!task) {
-      return res.status(404).json({ message: "Task not found" });
-    }
-
-    task.title = title || task.title;
-    task.description = description || task.description;
-    task.type = type || task.type;
-    task.status = status || task.status;
-    task.priority = priority || task.priority;
-    task.timeline = timeline || task.timeline;
-    task.assignedTo = assignedTo ? new ObjectId(assignedTo) : task.assignedTo;
-    task.updatedAt = new Date();
-
-    await project.save();
-
-    res.json(task);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error updating task", error: error.message });
-  }
-});
-
-router.delete("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
-  try {
-    const { projectId, taskId } = req.params;
-
-    const project = await Project.findById(projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    project.tasks = project.tasks.filter(
-      (task) => task._id.toString() !== taskId
-    );
-    await project.save();
-
-    res.json({ message: "Task deleted successfully" });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error deleting task", error: error.message });
+    res.status(500).json({ message: "Error creating task", error: error.message });
   }
 });
 
@@ -406,12 +327,8 @@ router.get("/:projectId/tasks", authMiddleware, async (req, res) => {
 router.get("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
   try {
     const { projectId, taskId } = req.params;
-
-    const project = await Project.findById(projectId).populate({
-      path: "tasks.assignedTo",
-      select: "username",
-    });
-
+    
+    const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
@@ -420,14 +337,11 @@ router.get("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
     }
-
-    const taskObject = task.toObject();
-
-    res.json(taskObject);
+    
+    res.json(task);
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching task", error: error.message });
+    console.error("Error fetching task:", error);
+    res.status(500).json({ message: "Error fetching task", error: error.toString() });
   }
 });
 
@@ -524,6 +438,83 @@ router.put("/:projectId", authMiddleware, async (req, res) => {
     res
       .status(500)
       .json({ message: "Error updating project", error: error.message });
+  }
+});
+
+// Update a task
+router.put("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
+  try {
+    const { projectId, taskId } = req.params;
+    const updateData = req.body;
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const task = project.tasks.id(taskId);
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    // Update task fields
+    Object.keys(updateData).forEach(key => {
+      if (key !== '_id' && key !== 'createdAt' && key !== 'updatedAt') {
+        if (key === 'assignedTo') {
+          task.assignedTo = updateData.assignedTo.map(user => user._id);
+        } else {
+          task[key] = updateData[key];
+        }
+      }
+    });
+
+    task.updatedAt = new Date();
+
+    await project.save();
+
+    res.json(task);
+  } catch (error) {
+    console.error("Error updating task:", error);
+    res.status(500).json({ message: "Error updating task", error: error.toString() });
+  }
+});
+
+// Delete a task
+router.delete("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
+  try {
+    const { projectId, taskId } = req.params;
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const taskIndex = project.tasks.findIndex(task => task._id.toString() === taskId);
+    if (taskIndex === -1) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    project.tasks.splice(taskIndex, 1);
+    await project.save();
+
+    res.json({ message: "Task deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting task:", error);
+    res.status(500).json({ message: "Error deleting task", error: error.toString() });
+  }
+});
+
+// Get project details
+router.get("/:projectId", authMiddleware, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId).populate('members', 'username _id');
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+    res.json(project);
+  } catch (error) {
+    console.error("Error fetching project details:", error);
+    res.status(500).json({ message: "Error fetching project details", error: error.toString() });
   }
 });
 
