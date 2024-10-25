@@ -155,6 +155,13 @@ router.put("/:id", authMiddleware, async (req, res) => {
         .json({ message: "You don't have permission to update this project" });
     }
 
+    if (name !== project.name) {
+      await logProjectActivity(id, `Project name changed from "${project.name}" to "${name}"`, req.user.userId);
+    }
+    if (description !== project.description) {
+      await logProjectActivity(id, "Project description updated", req.user.userId);
+    }
+
     project.name = name || project.name;
     project.description = description || project.description;
     project.updatedAt = new Date();
@@ -215,6 +222,8 @@ router.post("/:id/members", authMiddleware, async (req, res) => {
     projectObject.members = populatedMembers;
 
     res.json(projectObject);
+
+    await logProjectActivity(req.params.id, `Member ${user.username} added to the project`, req.user.userId);
   } catch (error) {
     res.status(500).json({
       message: "Error adding member to project",
@@ -276,6 +285,9 @@ router.delete(
       projectObject.members = populatedMembers;
 
       res.json(projectObject);
+
+      const removedUser = await User.findById(memberId);
+      await logProjectActivity(projectId, `Member ${removedUser.username} removed from the project`, req.user.userId);
     } catch (error) {
       res.status(500).json({
         message: "Error removing member from project",
@@ -355,11 +367,6 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
     const { projectId, taskId } = req.params;
     const { status } = req.body;
 
-    const validStatuses = ["Not Started", "In Progress", "Stuck", "Done"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value" });
-    }
-
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
@@ -370,27 +377,34 @@ router.patch("/:projectId/tasks/:taskId", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    // Update task status
+    const oldStatus = task.status;
     task.status = status;
     task.updatedAt = new Date();
 
-    // Log the task status update activity
-    task.activityLog.push({
-      action: `Task status updated to ${status}`,
+    // Add activity log entry
+    const user = await User.findById(req.user.userId);
+    project.activityLog.push({
+      action: `Task "${task.title}" status changed from "${oldStatus}" to "${status}"`,
       performedBy: req.user.userId,
       timestamp: new Date()
     });
 
-    // Save the project to persist changes
     await project.save();
 
-    // Populate the assignedTo field and performedBy in activityLog
-    await Project.populate(task, {
-      path: 'assignedTo activityLog.performedBy',
+    // Populate the performedBy field in the response
+    const populatedTask = await Project.populate(task, {
+      path: 'assignedTo',
       select: 'username _id'
     });
 
-    res.json(task);
+    res.json({
+      task: populatedTask,
+      activityLog: {
+        action: `Task "${task.title}" status changed from "${oldStatus}" to "${status}"`,
+        performedBy: { _id: user._id, username: user.username },
+        timestamp: new Date()
+      }
+    });
   } catch (error) {
     console.error("Error updating task status:", error);
     res.status(500).json({ message: "Error updating task status", error: error.toString() });
@@ -638,6 +652,61 @@ router.get("/:projectId/tasks/:taskId/activity", authMiddleware, async (req, res
   } catch (error) {
     console.error("Error fetching task activity log:", error);
     res.status(500).json({ message: "Error fetching task activity log", error: error.toString() });
+  }
+});
+
+// Add this function at the top of the file
+const logProjectActivity = async (projectId, action, userId) => {
+  try {
+    const project = await Project.findById(projectId);
+    if (!project) return;
+
+    project.activityLog.push({
+      action,
+      performedBy: userId,
+      timestamp: new Date()
+    });
+
+    await project.save();
+  } catch (error) {
+    console.error("Error logging project activity:", error);
+  }
+};
+
+// Update the project activity log route
+router.get("/:projectId/activity", authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 5;
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const totalLogs = project.activityLog.length;
+    const totalPages = Math.ceil(totalLogs / pageSize);
+    const skip = (page - 1) * pageSize;
+
+    const paginatedLogs = project.activityLog
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(skip, skip + pageSize);
+
+    await Project.populate(paginatedLogs, {
+      path: 'performedBy',
+      select: 'username _id'
+    });
+
+    res.json({
+      logs: paginatedLogs,
+      currentPage: page,
+      totalPages: totalPages,
+      totalLogs: totalLogs
+    });
+  } catch (error) {
+    console.error("Error fetching project activity log:", error);
+    res.status(500).json({ message: "Error fetching project activity log", error: error.toString() });
   }
 });
 

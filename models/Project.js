@@ -76,6 +76,17 @@ const ProjectSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  activityLog: [{
+    action: String,
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, { strict: true });
 
 const Project = mongoose.model("Project", ProjectSchema);
